@@ -140,6 +140,66 @@ _AsyncTaskDemo中，doInBackground用来执行具体下载任务并通过publish
 - 一个AsyncTask对象只能执行一次，即只能执行一次execute()方法,否则会报运行时异常。
 - 在Android1.6之前，AsyncTask是串行执行任务的，Android1.6的时候AsyncTask开始采用线程池处理并行任务，但是在Android3.0开始，为了避免AsyncTask所带来的并发错误，AsyncTask又采用一个线程来串行执行任务。尽管如此，在Android以后的版本中，我们仍然可以通过AsyncTask的executeOnExecutor()方法来并行执行任务
 
+#### HandlerThread
+ 
+HandlerThread 继承于 Thread 类，通过 getThreadHandler()方法创建handler代码如下：
+    ```
+       public Handler getThreadHandler() {
+        if (mHandler == null) {
+            mHandler = new Handler(getLooper());
+        }
+        return mHandler;
+    }
+    ```
+
+Looper 通过 实现run()方法来创建，代码如下：
+```
+ @Override
+    public void run() {
+        mTid = Process.myTid();
+        Looper.prepare();
+        synchronized (this) {
+            mLooper = Looper.myLooper();
+            notifyAll();
+        }
+        Process.setThreadPriority(mPriority);
+        onLooperPrepared();
+        Looper.loop();
+        mTid = -1;
+    }
+```
+
+结束方法有两个 quit() 和 quitSafely(),分别如下：
+
+quit:
+```
+   public boolean quit() {
+        Looper looper = getLooper();
+        if (looper != null) {
+            looper.quit();
+            return true;
+        }
+        return false;
+    }
+```
+
+quitSafely:
+
+```
+ public boolean quitSafely() {
+        Looper looper = getLooper();
+        if (looper != null) {
+            looper.quitSafely();
+            return true;
+        }
+        return false;
+    }
+
+```
+
+#### IntentService
+
+
 
 
 
