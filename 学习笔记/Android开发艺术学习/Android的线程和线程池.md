@@ -199,6 +199,9 @@ quitSafely:
 
 #### IntentService
 
+IntentService 是一个继承与Service 的抽象类 成员变量包含Looper和ServiceHandler。并且在onCreate()方法中创建了HandlerThread。整个工作流程是这样的：<br>
+
+在Oncreate()方法中创建HandlerThread,通过HandlerTHread的getLooper()方法拿到Looper对象，创建ServiceHandler并与Looper绑定。 onCreate()执行完毕之后，就执行onStart()方法，在onStart()里面创建Message并发送，这里注意onStart(Intent intent,int startId) 是可以携带参数的。结束的时候调用looper的quit()方法。
 
 
 
