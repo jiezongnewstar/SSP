@@ -201,7 +201,118 @@ quitSafely:
 
 IntentService 是一个继承与Service 的抽象类 成员变量包含Looper和ServiceHandler。并且在onCreate()方法中创建了HandlerThread。整个工作流程是这样的：<br>
 
-在Oncreate()方法中创建HandlerThread,通过HandlerTHread的getLooper()方法拿到Looper对象，创建ServiceHandler并与Looper绑定。 onCreate()执行完毕之后，就执行onStart()方法，在onStart()里面创建Message并发送，这里注意onStart(Intent intent,int startId) 是可以携带参数的。结束的时候调用looper的quit()方法。
+在Oncreate()方法中创建HandlerThread,通过HandlerTHread的getLooper()方法拿到Looper对象，创建ServiceHandler并与Looper绑定。 onCreate()执行完毕之后，就执行onStart()方法，在onStart()里面创建Message并发送，这里注意onStart(Intent intent,int startId) 是可以携带参数的。在onHaldleIntent中接收消息，并做出处理。结束的时候调用looper的quit()方法。
+
+
+IntentService可用于执行后台耗时的任务，当任务执行后，他会自动停止，同时由于IntentService是服务的原因，这样它的优先级比淡出拿到线程要高的多，所以IntentService比较适合执行一些高优先级的后台任务，因为它优先级高不容易被系统杀死。事实上，IntentService比较合适执行一些高优先级的后台任务，因为它优先级高不容易被系统杀死。
+
+
+---
+>Android中的线程池
+线程池的优点：
+- 线程重用，避免线程创建和销毁所带来的性能开销
+- 有效控制线程池的最大并发数，避免大量线程之间因为互相抢占资源导致的阻塞现象
+- 对线程进行简单的管理，并提供定时执行以及指定间隔循环执行等功能。
+
+Android中的线程池的概念源于Java中的Executor，Executor是一个接口，真正的线程池的实现为ThreadPoolExecutor。ThreadPoolExecutor提供了一系列参数来配置线程池，通过不同的参数可以创建不同的线程池，从线程池的功能特性上来说，Android的线程池主要分为4类，这4类线程池可以通过Executors所提供的的工厂方法得到，因为Android中的线程池都是直接或者间接通过配置ThreadPoolExecutor来实现的，因此要先介绍ThreadPoolExecutor。
+
+#### ThreadPoolExecutor
+
+THreadPoolExecutor是线程池的真正实现，它的构造方法提供了一些列参数来配置线程池，下面介绍ThreadPoolExecutor的构造方法中的各个参数的含义，这些参数将会直接影响到线程池的功能特性，下面ThreadPoolExecutor的一个比较常用的构造方法。
+```
+ public ThreadPoolExecutor(int corePoolSize,
+                              int maximumPoolSize,
+                              long keepAliveTime,
+                              TimeUnit unit,
+                              BlockingQueue<Runnable> workQueue) {
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
+             Executors.defaultThreadFactory(), defaultHandler);
+    }
+```
+- corePoolSize
+
+线程池的核心线程数，默认情况下，核心线程会在线程池中一直存活，及时它们处于闲置状态。如果将ThreadPoolExecutor的allowCoreThreadTimeOut属性设置为true，那么闲置的核心线程在等待新任务到来时会有超时策略，这个时间间隔由keepAliveTime所指定，当等待时间超过keepAliveTime所指定的时长后，核心线程就会被终止。
+- maximumPoolSize
+
+线程池所能容纳的最大线程数，当活动线程数达到这个数值后，后续的新任务将会被阻塞
+- keepAliveTime
+
+非核心线程闲置超时时长，超过这个时长，非核心线程就会被回收。当ThreadPoolExecutor的allowCoreThreadTimeOut属性设置为true时，keepAliveTime同样会作用于核心线程。
+- unit 
+
+线程池中的任务队列，通过线程池的execute方法提交的Runnable对象会存储在这个参数中
+- threadFaactory
+
+线程工厂，为线程池提创建新线程的功能。ThreadFactory是一个接口，它只有一个方法：Thread newThread(Runnable r).
+
+除了上面的这些主要参数外，ThreadPoolExecutor还有一个不常用的参数Rejected-ExecutionHandler handler。当线程池无法执行新任务时，这可能是由于任务队列已满或者是无法成功执行任务，这个时候ThreadPoolExecutor会调用handler的rejectedExecution-Exception。 ThreadPoolExecutor为RejectdExecutionHandler 提供了几个可选值：CallerRunPolicy、AbortPolicy、DiscardPolicy、和DiscardOldestPolicy其中AbortPolicy是默认值，它会直接抛出RejectExecutionException，由于handler这个参数不常用，这里就不再具体介绍了。
+
+ThreadPoolExecutor执行任务时大致遵循如下规则：
+
+- 如果线程池中的线程数量未达到核心线程的数量，那么会直接启动一个核心线程来执行任务。
+- 如果线程池中的线程数量已经达到或者超过核心线程的数量，那么任务会被插入到任务队列中排队等待执行。
+- 如果在步骤2中无法将任务插入到队列中，这往往是由于任务队列已满，这个时候如果线程数量未达到线程池规定的最大值，那么会立刻启动一个非核心线程来执行任务。
+- 如果步骤3中线程数量已经达到线程池规定的最大值，那么就拒绝执行任务，ThreadPoolExecutor会调用RejectExecutionHandler的rejectedExecution方法来通知调用者。
+
+ThreadPoolExecutor的参数配置在AsyncTask中有看到过：
+
+```
+   private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
+    private static final int CORE_POOL_SIZE = Math.max(2, Math.min(CPU_COUNT - 1, 4));
+    private static final int MAXIMUM_POOL_SIZE = CPU_COUNT * 2 + 1;
+    private static final int KEEP_ALIVE_SECONDS = 30;
+    private static final ThreadFactory sThreadFactory = new ThreadFactory() {
+        private final AtomicInteger mCount = new AtomicInteger(1);
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "AsyncTask #" + mCount.getAndIncrement());
+        }
+    };
+
+    private static final BlockingQueue<Runnable> sPoolWorkQueue =
+            new LinkedBlockingQueue<Runnable>(128);
+```
+
+```
+    public static final Executor THREAD_POOL_EXECUTOR;
+
+    static {
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+                CORE_POOL_SIZE, MAXIMUM_POOL_SIZE, KEEP_ALIVE_SECONDS, TimeUnit.SECONDS,
+                sPoolWorkQueue, sThreadFactory);
+        threadPoolExecutor.allowCoreThreadTimeOut(true);
+        THREAD_POOL_EXECUTOR = threadPoolExecutor;
+    }
+
+```
+
+从上面的代码可以知道，AsyncTask对THREAD_POOL_EXECUTOR这个线程池进行了配置，配置后的线程池规格如下：
+- 核心线程池数等于CPU核心数 +1
+- 线程池的最大线程数为CPU核心数的2倍 +1 
+- 核心线程无超时机制，非核心线程在闲置时的超时时间为1秒
+- 任务队列的容量为128
+
+> 线程池的分类
+
+#### FixedThreadPool 
+
+通过Executors 的newFixedThreadPool方法创建。它是一种线程数量固定的线程池，当线程处于空闲状态时，他们并不会被回收，除非线程池被关闭了。当所有的线程都处于活动状态时，新任务都会处于等待状态，知道有线程空闲出来。由于FixedThreadPool只有核心线程并且这些核心线程不会被回收，这意味着它能够个更加快速的响应外界的请求。newFixedThreadPool 方法实现如下，可以发现FixedThreadPool中只有核心线程并且这些核心线程没有超时机制，另外任务队列也是没有大小限制的。
+
+#### CachedThreadPool 
+
+通过Executors的newCachedThreadPool方法来创建。它是一种线程数量不定的线程池，他只有非核心线程，并且其中最大线程数为Integer.Max_VALUE。由于Integer.MAX_VALUE是一个很大的数，实际上就相当于最大线程数可以任意大。当线程池中的线程都处于活动状态时，线程池会创建新的线程来处理新任务，否则就会利用空闲线程来处理新任务。线程池中的空闲线程都有超时机制，
+这个超时时长为60秒，超过60秒闲置线程就会被回收。和FixedThreadPool不同的是，CachedThreadPool在任务队列其实相当于一个空集合，这将导致任何任务都会立即被执行，因为在这种场景下SzynchronousQueue是无法插入任务的。SynchronousQueue是一个非常特殊的队列，在很多情况下可以把它简单理解为一个无法存储元素的队列，由于它在实际中较少使用，这里就不深入讨论它了。从CachedThread
+Pool的特性来看，这类线程池比较适合执行大量的耗时较少的人物。当整个线程池都处于闲置状态时，线程池中的线程都会超时而被停止，这个时候CachedThreadPool之中实际上是没有任何线程的，它几乎是不占用任何系统资源的。
+
+#### SecheduledThreadPool 
+
+通过EXecutors的newSecheduledThreadPool方法来创建。它的核心线程数量是固定的，而非核心线程数是没有限制的，并且当非核心线程闲置时会被立即回收。ScheduledThreadPool 这类线程池主要用于执行定时任务和具有固定周期的重复任务。
+
+#### SingleThreadExecutor 
+
+通过Executors的newSingleThreadExecutor方法来创建。这类线程池内部只有一个核心线程，他确保所有的任务在同一个线程中按顺序执行。SinglethreadExecutor的意义在于统一所有的外界任务到一个线程中，这使得在这些任务之间不需要处理线程同步的问题。
+
+
+
 
 
 
