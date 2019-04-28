@@ -240,6 +240,9 @@ THreadPoolExecutor是线程池的真正实现，它的构造方法提供了一�
 非核心线程闲置超时时长，超过这个时长，非核心线程就会被回收。当ThreadPoolExecutor的allowCoreThreadTimeOut属性设置为true时，keepAliveTime同样会作用于核心线程。
 - unit 
 
+用于指定keepAliveTime参数的时间单位，这是一个枚举，常用的有TiimeUnit.MILISECONFS（毫秒）/TimeUint.MINUTES（分钟）等。
+
+- workQueue
 线程池中的任务队列，通过线程池的execute方法提交的Runnable对象会存储在这个参数中
 - threadFaactory
 
