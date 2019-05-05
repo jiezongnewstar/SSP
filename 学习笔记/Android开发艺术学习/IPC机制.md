@@ -94,3 +94,66 @@ public class MyApplication extends Application{
 ```
 
 运行后看一下log，通过log可以看出，Application执行了三次onCreate，并且每次的进程名称和进程id都不一样，他们的进程名和我们为Activity指定的android:process属性一致。这也就证实了在多进程模式中，不同进程的组件的确会拥有独立的虚拟机、Application以及内存空间，这回给实际的开发带来很多困扰，是尤其需要注意的。或者我们也可以这么理解同一个应用间的多进程：它就相当于两个不同的应用采用了SharedUID的模式，这样就能够更加直接理解多进程模式的本质
+
+补充：分析了多进程所带来的问题，但是我们不能因为多进程有很多问题就不去正视他。为了解决这个问题，系统系统提供了很多跨进程通信方法，虽然说不能直接共享内存，但是通过跨进程通信我们还是可以实现数据交互。实现跨进程通信的方式很多，比如通过Intent来传递数据，共享文件和SharedPreFerences基于Binder的Messager和AIDL以及Socket等，但是为了更好地理解各个IPC方式，我们需要先熟悉一些基础概念，比如序列化相关的Serializable和Parceable接口，以及Binder的概念，熟悉完这些基础概念以后，再去理解各种IPC方式就比较简单了。
+
+#### IPC基础概念介绍
+主要介绍IPC中的一些基础概念，主要包括含三方面的内容：Serializable接口、Parcelable接口以及Binder，只有熟悉这三方面的内容后，我们才能更好的理解跨进程通信的各种方式。Seriaizable和Parcelable接口可以完成对象序列化过程，当我们需要通过Intent和Binder传输数据时就需要使用Parcelable和Serializable。还有的时候我们也需要把对象持久化到存储设备上或者通过网络传输给其他客户端，这个时候也需要使用Serializable来完成对象持久化，下面介绍如何使用Serializable完成对象的序列化。
+
+> Serializable接口
+
+Serizlizable是java所提供的一个序列化接口，它是一个空接口，为对象提供标准的序列化和反序列化操作。使用Serializable来实现序列化相当简单，只需要在类的声明中指定一个类似下面的标识即可自动实现默认的序列化过程。
+
+`private static final long serialVersionUID = 8711368828010083044L`
+
+在Android中也提供了新的序列化方式，那就是Parcelable接口，使用Parcelable来实现对象的序列号，其实过程稍微复杂一些，本节先介绍Serializable接口。上面提到，想让一个对象实现序列化，只需要这个类实现Serializable接口并声明一个SerialVersionUID即可，实际上，甚至这个serialVersionUID也不是必需的，我们不声明这个serialVersionUID同样也可以实现序列化，但是这将会对反序列过程产生影响，具体什么影响后面再介绍。User类就是一个实现了Serializable接口的类，它是可以被序列化和反序列化的：
+```
+public class User implements Serializable{
+
+    private static fin long serialVersionUID = 519067123721295773L;
+    public int userId;
+    public String userName;
+    public boolean isMale;
+    ...
+}
+
+````
+
+通过Serializable 方式来实现对象的序列化，实现起来非常简单，几乎所有工作都被系统自动完成了。如何进行对象的序列化和反序列化也非常简单，只需要采用ObjectOutputStream和ObjectInputStream即可轻松实现。下面举个简单的例子：
+```
+//序列化过程
+User user = new User(0,"jake",true);
+ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream("cache.txt"));
+
+out.writeObject(user);
+out.close();
+
+//反序列化过程
+ObjectInputStream in = new ObjectInputStream(new FileInputStream("cache.txt"));
+User newUser = (User)in.readObject();
+in.close();
+```
+
+上述代码演示了采用Serializable方式序列化对象的典型过程，很简单，只需要把实现了Serializable接口的User对象写到文件中就可以快速恢复了，恢复后的对象newUser和user内容完全一样，但是两者并不是同一个对象。
+
+刚开始提到，即使不指定serialVersionUID也可以实现序列化，那到底要不要指定呢？
+如果指定的话，serialVersionUID后面那一长串数字又是什么含义呢？我们要明白，系统既然提供了这个serialVersionUID，那么它必须是有用的，这个serialVersionUID是用来辅助序列化和反序列化过程的，原则上序列化后的数据中的serialVersionUID只有和当前类的serialVersionUID相同才能够正常被序列化。serialVersionUID的详细工作机制是这样的：序列化的时候，系统会把当前类的serialVersionUID写入序列化的文件中（也可能是其他的中介），当反序列化的时候系统会去检测文件中的serialVersionUID，看它是否和当前类的serialVersionUID一致，如果一致就说明序列化的类的版本和当前类的版本是相同的，这个时候可以成功反序列化，否则就说明当前类和序列化的类相比发生了某些变换，比如成员变量的数量、类型可能发生了改变，这个时候是无法正常反序列化的，因此会报如下错误：
+
+    ```
+    java.io.InvalidClassExecption:Main;local class incompatible;stream classdesc serialVersionUID = 87113688010083044,local class serial-VersionUID = 8711368828010083043
+    ```
+
+一般来说，我们应该手动指定serialVersionUID的值，比如1L，也可以让编辑器根据当前类的结构自动去生成它的hash值，这样序列化和反序列化时两者的serialVersionUID是相同的，因此可以正常进行反序列化。如果不手动指定serialVersionUID的值，反序列化时当类有所改变，比如增加或者删除了某些成员变量，那么系统就会重新计算当前类的hash值并把它赋值给serialVersionUID，这个时候当前类的serialVersionUID就和序列化的数据中的serialVersionUID不一致，于是反序列化失败，程序就会crash。所以，我们可以明显感受到serialVersionUID的作用，当我们手动指定了它以后，就可以在最大限度地恢复数据，相反，如果不指定serialVersionUID的话，程序则会挂掉。当然我们还要考虑另外一种情况，如果类结构发成了非常规性改变，比如修改了类名，修改了成员变量的类名，这个时候尽管
+serialVersionUID验证通过了，但是反序列化过程还是会失败，因为类结构有了毁灭性的改变，根本无法从老版本的数据中还原出一个新的类结构对象。
+
+根据上面的分析，我们可以知道，给serialVersionUID指定1L或者采用编辑器根据当前类去生成的hash值，这两者并没有本质区别，效果完全一样。以下两点需要特别提一下，首先静态成员变量不属于对象，所以不会参与序列化过程；其次用transient关键字标记的成员变量不参与序列化过程。
+
+另外，系统的默认序列化过程也是可以改变的，通过实现如下两个方法即可重写系统默认的序列化和反序列化过程：
+```
+private void writeObject(java.io.ObjectOutputStream out) throws IOException{
+
+}
+
+private void readObject(java.io.ObjectInputStream in) throws IOException,ClassNotFundException{
+}
+```
