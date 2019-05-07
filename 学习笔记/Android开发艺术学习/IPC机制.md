@@ -211,6 +211,8 @@ public class User implements Parcelable{
 ```
 
 这里先说一下Parcel ，Parcel 内部包装了可序列化的数据，可以在Binder中自由传输。从上述代码中可以看出，在序列化过程中需要实现的功能有序列化、反序列化和内容没描述。序列化功能由writeToParcel方法完成，最终通过Parcel中的一系列wirte方法完成。反序列化由CREATOR来完成，其内部标明了如何创建序列化对象和数值，并通过Parcel的一些列read方法来完成反序列化过程；内容描述功能由describeContents方法来完成，几乎在所有情况下这个方法都返回0，仅当当前对象中存在文件描述符时，此方法返回1。需要注意的是，在User(Parcel in)方法中，由于book是另一个可序列化对象，所有说它的反序列化过程需要传递当前线程上下文类加载器，否则会报无法找到类的错误，下面展示详细的方法说明：
+
+
 方法 | 功能| 标记位
 ---|---|---
 createFromParcel(Parcle in)| 从序列化后的对象中创建原始数据| 
@@ -219,10 +221,13 @@ User(Parcel in) | 从序列化的对象中创建原始数据 |
 writeToParcel(Parcel out,int flags) | 将当前对象写入序列化结构中，其中flags标识有两种值:0或1（参见右侧标记位）。为1时标识当前对象需要作为返回值返回，不能立即释放资源，几乎所有情况都为0| PARCELABLE_WRITE_RETURN_VALUE
 describeContents | 返回当前对象的内容描述。如果含有文件描述符，返回1（参见右侧标记位），否则返回0，几乎所有情况都返回0 | CONTENTS_FILE_DESCRIPTOR
 
+
 系统已经为我们提供了实现Parcelable接口的类，他们都可以直接序列化，比如Intent、Bundle、Bitmap等，同时List 和Map也可以序列化，前提是他们里面的每个元素都是可序列化的。
 
 既然Parcelable 和Serializable都能实现序列化并且都可用于Intent间数据传递，那么二者该如何选取呢？Serializable是Java中的序列化接口，其实用起来简单但是开销很大，序列化和反序列化过程需要大量的I/O操作。而Parcelable是Android中的序列化方式，因此更适合在Android平台上，它的缺点就是使用起来稍微麻烦点，但是它的效率很高，这个Android推荐的序列化方式，因此我们要首选Parcelable。Parcelable主要用在内存序列化上，通过Parcelable将对象序列化存储设备中，或者将对象序列化后通过网络传输也都是可以的，但是这个过程会稍显复杂，因此在这两种情况下建议大家使用Serializable。
 
 >Binder
+
+Binder 
 
 
