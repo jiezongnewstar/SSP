@@ -164,53 +164,77 @@ private void readObject(java.io.ObjectInputStream in) throws IOException,ClassNo
 Parcelable 也是一个接口，只要实现这个接口，一个类的对象就可以实现序列化并可以通过Intent和Binder传递。下面的示例是一个典型的用法。
 
 ```
-public class User implements Parcelable{
-    public int userId;
-    public String userName;
-    public boolean isMale;
-    
-    public Book book;
+package com.xibei.binderdemo;
 
-    public User(int userId,String userName,boolean isMale){
-        this.userId = userId;
-        this.userName = userName;
-        this.isMale = isMale;
+import android.os.Parcel;
+import android.os.Parcelable;
+
+/**
+ * Created by Xibei on 2019/4/24.
+ * Github: https://github.com/jiezongnewstar
+ * Email: ibossjia@gmail.com
+ * Deeclaration:
+ */
+public class Animal implements Parcelable {
+
+    private String name;
+
+    public Animal(String name, int legsNumber) {
+        this.name = name;
+        this.legsNumber = legsNumber;
     }
 
-    public int describeContents(){
+    private int legsNumber;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getLegsNumber() {
+        return legsNumber;
+    }
+
+    public void setLegsNumber(int legsNumber) {
+        this.legsNumber = legsNumber;
+    }
+
+    @Override
+    public int describeContents() {
         return 0;
     }
 
-    public void writeToParcel(Parcel out,int flags){
-
-        out.writeInt(userId);
-        out.writeString(userName);
-        out.writeInt(isMale ? 1:2);   
-        out.writeParcelalbe(book,0);   
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(this.name);
+        dest.writeInt(this.legsNumber);
     }
-    
-    public static final Parcelable.Creator<User> CREATOR = new Parcelalbe.Creator<User>{
-        public User createFromParcel(Parcel in){
-            return new User(in);
+
+    protected Animal(Parcel in) {
+        this.name = in.readString();
+        this.legsNumber = in.readInt();
+    }
+
+    public static final Parcelable.Creator<Animal> CREATOR = new Parcelable.Creator<Animal>() {
+        @Override
+        public Animal createFromParcel(Parcel source) {
+            return new Animal(source);
         }
-    }
 
-    public User[] newArray(int size){
-        return new User[size];
-    }
-
-    private User(Parcle in){
-        userId = in.readInt();
-        userName = in.readString();
-        isMale = in.readInt() ==1;
-        book = in.readParcelable(Thread.currentThread().getContextClassLoader());
-    }
-
+        @Override
+        public Animal[] newArray(int size) {
+            return new Animal[size];
+        }
+    };
 }
+
 
 ```
 
-这里先说一下Parcel ，Parcel 内部包装了可序列化的数据，可以在Binder中自由传输。从上述代码中可以看出，在序列化过程中需要实现的功能有序列化、反序列化和内容没描述。序列化功能由writeToParcel方法完成，最终通过Parcel中的一系列wirte方法完成。反序列化由CREATOR来完成，其内部标明了如何创建序列化对象和数值，并通过Parcel的一些列read方法来完成反序列化过程；内容描述功能由describeContents方法来完成，几乎在所有情况下这个方法都返回0，仅当当前对象中存在文件描述符时，此方法返回1。需要注意的是，在User(Parcel in)方法中，由于book是另一个可序列化对象，所有说它的反序列化过程需要传递当前线程上下文类加载器，否则会报无法找到类的错误，下面展示详细的方法说明：
+这里先说一下Parcel ，Parcel 内部包装了可序列化的数据，可以在Binder中自由传输。从上述代码中可以看出，在序列化过程中需要实现的功能有序列化、反序列化和内容没描述。序列化功能由writeToParcel方法完成，最终通过Parcel中的一系列wirte方法完成。反序列化由CREATOR来完成，其内部标明了如何创建序列化对象和数值，并通过Parcel的一些列read方法来完成反序列化过程；内容描述功能由describeContents方法来完成，几乎在所有情况下这个方法都返回0，仅当当前对象中存在文件描述符时，此方法返回1。需要注意的是，在Animal(Parcel in)方法中，由于dog是另一个可序列化对象，所以说它的反序列化过程需要传递当前线程上下文类加载器，否则会报无法找到类的错误，下面展示详细的方法说明：
 
 
 方法 | 功能| 标记位
@@ -228,6 +252,437 @@ describeContents | 返回当前对象的内容描述。如果含有文件描述�
 
 >Binder
 
-Binder 
+Binder 是Android中的一个类，它实现了IBinder接口。从IPC角度来说，Binder是Android中的一种跨进程通信方式，Binder还可以理解为一种虚拟物理设备，它的驱动设备是/dev/binder,该通信方式在Linux中没有；从Android Framwork角度来说，Binder是ServiceManager连接各种Manager（ActivityManager、WindowManager等等）和相应ManagerService的桥梁；从Android应用层来说，Binder是客户端和服务端进行通信的媒介，当bindService的时候，服务端会返回一个包含了服务端业务调用的Binder对象，同个这个Binder对象，客户端就可以获取服务端提供的服务或数据，这里的服务包括普通服务和基于AIDL的服务。
+
+Android开发中，Binder主要用在Service中，包括AIDL和Messager，其中普通Service中的Binder不涉及进程间通信，所以较为简单，无法触及Binder的核心，而是Messager的底层其实是AIDL，所以这里选择用AIDL来分析Biner工作机制。为了分析Binder的工作机制，我们需要新建一个AIDL实例，SDK会自动为我们生产AIDL多对应的Binder类，然后我们就可以分析Binder工作过程。还是采用之前的例子
+
+- Animal 类
+
+```
+package com.xibei.binderdemo;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
+/**
+ * Created by Xibei on 2019/5/7.
+ * Github: https://github.com/jiezongnewstar
+ * Email: ibossjia@gmail.com
+ * Deeclaration:
+ */
+public class Dog implements Parcelable {
+
+    public String name;
+
+    public int legs;
+
+    protected Dog(Parcel in) {
+        name = in.readString();
+        legs = in.readInt();
+    }
+
+    public static final Creator<Dog> CREATOR = new Creator<Dog>() {
+        @Override
+        public Dog createFromParcel(Parcel in) {
+            return new Dog(in);
+        }
+
+        @Override
+        public Dog[] newArray(int size) {
+            return new Dog[size];
+        }
+    };
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(name);
+        dest.writeInt(legs);
+    }
+}
+
+```
+
+- Animal类
+
+```
+package com.xibei.binderdemo;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
+/**
+ * Created by Xibei on 2019/4/24.
+ * Github: https://github.com/jiezongnewstar
+ * Email: ibossjia@gmail.com
+ * Deeclaration:
+ */
+public class Animal implements Parcelable {
+
+    private String name;
+
+    private Dog dog;
+
+
+
+    private int legsNumber;
+
+
+    protected Animal(Parcel in) {
+        name = in.readString();
+        dog = in.readParcelable(Dog.class.getClassLoader());
+        legsNumber = in.readInt();
+    }
+
+    public static final Creator<Animal> CREATOR = new Creator<Animal>() {
+        @Override
+        public Animal createFromParcel(Parcel in) {
+            return new Animal(in);
+        }
+
+        @Override
+        public Animal[] newArray(int size) {
+            return new Animal[size];
+        }
+    };
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(name);
+        dest.writeParcelable(dog, flags);
+        dest.writeInt(legsNumber);
+        dest.writeParcelable(dog,0);
+    }
+}
+
+
+```
+
+- Animal.aidl
+
+```
+// Animal.aidl
+package com.xibei.binderdemo;
+parcelable Animal;
+
+```
+
+- AnimalManager类
+
+```
+
+// AnimalManager.aidl
+package com.xibei.binderdemo;
+
+import com.xibei.binderdemo.Animal;
+
+interface AnimalManager{
+
+    List<Animal> getAnimals();
+
+    Animal getAnimal();
+
+    int getAnimalCount();
+
+    int getFirstAnimalLegs();
+
+    void setAnimalName(String name);
+
+    void setAnimalLegs(int legs);
+
+}
+
+
+```
+
+上面三个文件中，Animal.java表示一个动物类，它实现了Parcelable接口。Animal.aidl 是Animal类在AIDL中的声明。AnimalManager 是我们定义的一个接口，里面的方法如上面代码所示。 我们可以看到，这三个类位于相同的包名下，但是在AnimalManager类中仍然要导入Animal类，这就是AIDL的特殊之处，下面我们看一下系统为AnimalManager生产的Binder类:
+
+```
+
+/*
+ * This file is auto-generated.  DO NOT MODIFY.
+ * Original file: /Users/jiajie/Downloads/demo/android/BinderDemo/app/src/main/aidl/com/xibei/binderdemo/AnimalManager.aidl
+ */
+package com.xibei.binderdemo;
+
+public interface AnimalManager extends android.os.IInterface {
+    /**
+     * Local-side IPC implementation stub class.
+     */
+    public static abstract class Stub extends android.os.Binder implements com.xibei.binderdemo.AnimalManager {
+        private static final java.lang.String DESCRIPTOR = "com.xibei.binderdemo.AnimalManager";
+
+        /**
+         * Construct the stub at attach it to the interface.
+         */
+        public Stub() {
+            this.attachInterface(this, DESCRIPTOR);
+        }
+
+        /**
+         * Cast an IBinder object into an com.xibei.binderdemo.AnimalManager interface,
+         * generating a proxy if needed.
+         */
+        public static com.xibei.binderdemo.AnimalManager asInterface(android.os.IBinder obj) {
+            if ((obj == null)) {
+                return null;
+            }
+            android.os.IInterface iin = obj.queryLocalInterface(DESCRIPTOR);
+            if (((iin != null) && (iin instanceof com.xibei.binderdemo.AnimalManager))) {
+                return ((com.xibei.binderdemo.AnimalManager) iin);
+            }
+            return new com.xibei.binderdemo.AnimalManager.Stub.Proxy(obj);
+        }
+
+        @Override
+        public android.os.IBinder asBinder() {
+            return this;
+        }
+
+        @Override
+        public boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags) throws android.os.RemoteException {
+            java.lang.String descriptor = DESCRIPTOR;
+            switch (code) {
+                case INTERFACE_TRANSACTION: {
+                    reply.writeString(descriptor);
+                    return true;
+                }
+                case TRANSACTION_getAnimals: {
+                    data.enforceInterface(descriptor);
+                    java.util.List<com.xibei.binderdemo.Animal> _result = this.getAnimals();
+                    reply.writeNoException();
+                    reply.writeTypedList(_result);
+                    return true;
+                }
+                case TRANSACTION_getAnimal: {
+                    data.enforceInterface(descriptor);
+                    com.xibei.binderdemo.Animal _result = this.getAnimal();
+                    reply.writeNoException();
+                    if ((_result != null)) {
+                        reply.writeInt(1);
+                        _result.writeToParcel(reply, android.os.Parcelable.PARCELABLE_WRITE_RETURN_VALUE);
+                    } else {
+                        reply.writeInt(0);
+                    }
+                    return true;
+                }
+                case TRANSACTION_getAnimalCount: {
+                    data.enforceInterface(descriptor);
+                    int _result = this.getAnimalCount();
+                    reply.writeNoException();
+                    reply.writeInt(_result);
+                    return true;
+                }
+                case TRANSACTION_getFirstAnimalLegs: {
+                    data.enforceInterface(descriptor);
+                    int _result = this.getFirstAnimalLegs();
+                    reply.writeNoException();
+                    reply.writeInt(_result);
+                    return true;
+                }
+                case TRANSACTION_setAnimalName: {
+                    data.enforceInterface(descriptor);
+                    java.lang.String _arg0;
+                    _arg0 = data.readString();
+                    this.setAnimalName(_arg0);
+                    reply.writeNoException();
+                    return true;
+                }
+                case TRANSACTION_setAnimalLegs: {
+                    data.enforceInterface(descriptor);
+                    int _arg0;
+                    _arg0 = data.readInt();
+                    this.setAnimalLegs(_arg0);
+                    reply.writeNoException();
+                    return true;
+                }
+                default: {
+                    return super.onTransact(code, data, reply, flags);
+                }
+            }
+        }
+
+        private static class Proxy implements com.xibei.binderdemo.AnimalManager {
+            private android.os.IBinder mRemote;
+
+            Proxy(android.os.IBinder remote) {
+                mRemote = remote;
+            }
+
+            @Override
+            public android.os.IBinder asBinder() {
+                return mRemote;
+            }
+
+            public java.lang.String getInterfaceDescriptor() {
+                return DESCRIPTOR;
+            }
+
+            @Override
+            public java.util.List<com.xibei.binderdemo.Animal> getAnimals() throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                java.util.List<com.xibei.binderdemo.Animal> _result;
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    mRemote.transact(Stub.TRANSACTION_getAnimals, _data, _reply, 0);
+                    _reply.readException();
+                    _result = _reply.createTypedArrayList(com.xibei.binderdemo.Animal.CREATOR);
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+                return _result;
+            }
+
+            @Override
+            public com.xibei.binderdemo.Animal getAnimal() throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                com.xibei.binderdemo.Animal _result;
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    mRemote.transact(Stub.TRANSACTION_getAnimal, _data, _reply, 0);
+                    _reply.readException();
+                    if ((0 != _reply.readInt())) {
+                        _result = com.xibei.binderdemo.Animal.CREATOR.createFromParcel(_reply);
+                    } else {
+                        _result = null;
+                    }
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+                return _result;
+            }
+
+            @Override
+            public int getAnimalCount() throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                int _result;
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    mRemote.transact(Stub.TRANSACTION_getAnimalCount, _data, _reply, 0);
+                    _reply.readException();
+                    _result = _reply.readInt();
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+                return _result;
+            }
+
+            @Override
+            public int getFirstAnimalLegs() throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                int _result;
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    mRemote.transact(Stub.TRANSACTION_getFirstAnimalLegs, _data, _reply, 0);
+                    _reply.readException();
+                    _result = _reply.readInt();
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+                return _result;
+            }
+
+            @Override
+            public void setAnimalName(java.lang.String name) throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    _data.writeString(name);
+                    mRemote.transact(Stub.TRANSACTION_setAnimalName, _data, _reply, 0);
+                    _reply.readException();
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+            }
+
+            @Override
+            public void setAnimalLegs(int legs) throws android.os.RemoteException {
+                android.os.Parcel _data = android.os.Parcel.obtain();
+                android.os.Parcel _reply = android.os.Parcel.obtain();
+                try {
+                    _data.writeInterfaceToken(DESCRIPTOR);
+                    _data.writeInt(legs);
+                    mRemote.transact(Stub.TRANSACTION_setAnimalLegs, _data, _reply, 0);
+                    _reply.readException();
+                } finally {
+                    _reply.recycle();
+                    _data.recycle();
+                }
+            }
+        }
+
+        static final int TRANSACTION_getAnimals = (android.os.IBinder.FIRST_CALL_TRANSACTION + 0);
+        static final int TRANSACTION_getAnimal = (android.os.IBinder.FIRST_CALL_TRANSACTION + 1);
+        static final int TRANSACTION_getAnimalCount = (android.os.IBinder.FIRST_CALL_TRANSACTION + 2);
+        static final int TRANSACTION_getFirstAnimalLegs = (android.os.IBinder.FIRST_CALL_TRANSACTION + 3);
+        static final int TRANSACTION_setAnimalName = (android.os.IBinder.FIRST_CALL_TRANSACTION + 4);
+        static final int TRANSACTION_setAnimalLegs = (android.os.IBinder.FIRST_CALL_TRANSACTION + 5);
+    }
+
+    public java.util.List<com.xibei.binderdemo.Animal> getAnimals() throws android.os.RemoteException;
+
+    public com.xibei.binderdemo.Animal getAnimal() throws android.os.RemoteException;
+
+    public int getAnimalCount() throws android.os.RemoteException;
+
+    public int getFirstAnimalLegs() throws android.os.RemoteException;
+
+    public void setAnimalName(java.lang.String name) throws android.os.RemoteException;
+
+    public void setAnimalLegs(int legs) throws android.os.RemoteException;
+}
+
+
+
+```
+
+上述代码是系统生成的，我们可以在两个地方看到它，一个是/gen，另一个是/app/generated/aidl_source_output_dir中。我们可以看到系统给我们生成的AnimalManager类继承了IInterface这个接口，同时它自己也还是个接口，所有可以在Binder中传输的接口需要继承IInterface接口。这个类刚刚开始看起来逻辑混乱，但是实际上还是很清晰的，通过它我们可以清楚的了解到Binder的工作机制。在最下面，声明了我们在AnimalManager.aidl中声明的方法，同时声明了对应的整型id,这里我们可以看到是递增的。这里id 的用处是标识在transact过程中客户端所请求的到底是哪个方法。接着声明了一个内部类Stub，这个Stub就是一个Binder类，当客户端和服务端都位于同一个进程时，方法调用不会走跨进程的transact过程，而当两者位于不同进程时，方法调用需要走transact过程，这个逻辑有Stup的内部代理类Proxy来完成。这么来看，AnimalManager这个接口确实很简单，但是我们也应该认识到，这个接口的核心就是它的背部类Stub和Stub的内部代理类Proxy，下面详细介绍针对这两个类的每个方法的含义。
+
+- DESCRIPTOR
+  Binder 的唯一标识，一般用当前Binder的类名表示，比如本例中的 "com.xibei.binderdemo.AnimalManager"
+- asInterface(android.os.IBinder obj)
+用于将服务端的Binder对象转换成客户端所需的AIDL接口类型的对象，这种转换过程是区分进程的，如果客户端和服务端位于同一进程，那么此方法返回的就是服务端的Stub对象本身，否则返回的是系统封装后的Stub.Proxy对象
+- asBinder
+此方法用于返回当前Binder对象
+- onTransact
+这个方法运行在服务端中的Binder线程池中，当客户端发起跨进程请求时，远程请求会通过系统底层封装后交由此方法来处理。该方法的原型为 public Boolean onTransact(int code,android.os.Parcel data,android.osParcel reply,int flags)。服务端通过code可以确定客户端所请求的目标方法是什么，接着从data中取出目标方法所需的参数(如果目标方法有返回值的话)，onTransact方法的执行过程就是这样，需要注意的是，如果此方法返回false，那么客户端的请求会失败，因此我们可以利用这个特性来做权限验证，毕竟我们也不希望随便一个进程都能远程调用我们的服务。
+
+- Proxy#getAnimals
+这个方法运行在客户端，当客户端远程调用此方法时，它的内部实现是这样的：首先创建该方法所需要的输入型Parcel 对象 _data,输出型Parcel 对象_reply和返回值对象List；然后把该方法的参数信息写入data(如果有参数的话)；接着调用transact方法来发起RPC（远程过程调用）请求，同时当前线程挂起；然后服务端的onTransact方法会被调用，直到RPC过程返回后，当前线程继续执行，并从_reply中取出RPC过程的返回结果；最后返回_reply中的数据。
+
+ .......
+
+ 通过上面的分析，我们应该大致了解了Binder的工作机制，但是有两点还是需要额外说明一下：首先，当客户端发起远程请求是，由于当前线程会被挂起直至服务端进程返回数据，所以如果一个远程方法是很耗时的，那么不能在UI线程中发起此远程请求；其次，由于服务端的Binder方法运行在Binder的线程池中，所以Binder不管是否耗时都应该采用同步的方式去实现，因为它已经运行在一个线程中了。
+
+ 
+
+
+
+
+
+
+
+
+
+
 
 
