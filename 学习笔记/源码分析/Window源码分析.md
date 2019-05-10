@@ -6,7 +6,7 @@ _现在一步步对这个类的源码进行分析，经过站在巨人的肩膀�
 这次没有切入点，先走一遍注释。代码有点长，这里不全部贴了。
 
 > Window类的介绍
-顶层窗口外观和行为策略的抽象类，一个类的实例应用作添加到窗口管理器。它提供了标准的UI策略，比如背景、标题、区域、默认秘钥处理等。 目前唯一做为它的实例的时PhoneWindow，当你需要的时候可以去实例化它。
+顶层窗口外观和行为策略的抽象类，一个类的实例应用作添加到窗口管理器。它提供了标准的UI策略，比如背景、标题、区域、默认按键处理等。 目前唯一做为它的实例的时PhoneWindow，当你需要的时候可以去实例化它。
 
 - 常量说明
 
@@ -43,6 +43,38 @@ PROPERTY_HARDWARE_UI | 硬件属性|persist.sys.ui.hw
 DECOR_CAPTION_SHADE_AUTO | 用于让主题驱动窗口标题控件的颜色|0
 DECOR_CAPTION_SHADE_LIGHT | 用于窗口标题上设置浅色控件 使用setDecorCaptionShade(int)|1
 DECOR_CAPTION_SHADE_DARK |用于在窗口标题上设置深色控件，使用 setDecorCaptionShade (int)|2
+
+
+> Callback 
+
+从窗口返回到调用者的API。允许客户端拦截按键事件，面板和菜单等。
+
+- `public boolean dispatchKeyEvent(KeyEvent event);`
+处理按键事件，标准的实现至少需要调用`superDispatchKeyEvent`，该事件消耗时返回true
+
+- `public boolean dispatchKeyShortcutEvent(KeyEvent event);`
+处理快捷方式，标准的实现至少调用superDispatchKeyShortcutEvent，该事件消耗时返回true
+
+- `public boolean dispatchTouchEvent(MotionEvent event);`
+处理屏幕触摸事件，标准的实现至少调用superDispatchTouchEvent，该事件消耗时返回true
+
+- `public boolean dispatchTrackballEvent(MotionEvent event);`
+处理轨迹球事件，标准的实现至少调用superDispatchTrackballEvent，该事件消耗时返回true
+
+- `public boolean dispatchGenericMotionEvent(MotionEvent event);` 
+处理手势事件，标准的实现至少调用dispatchGenericMotionEvent，该事件消耗时返回true
+
+- `public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event);`
+处理单击事件，如果点击完成，返回true
+
+- ``
+
+
+
+
+
+
+
 
 
 
