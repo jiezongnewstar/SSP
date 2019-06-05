@@ -391,6 +391,108 @@ ActivityThread.handleResumeActivity
 
 绘制: ViewRootImpl.performDraw
 
+- DecorView添加到窗口Window的过程:
+
+ActivityThread(handlerResumeActivity()) --> WindowManagerImpl(addView()) --> WindowManagerGlobal(addView()) --> ViewRootImpl(requestLayout()) --> ViewRootImpl(scheduleTraversals) --> ViewRootImpl(doTraversal()) --> ViewRootImpl(performTraversals()) --> 进如View的绘制流程：1.ViewRootImpl.performMeasure 2.ViewRootImpl.performLayout 3.ViewRootImpl.performDraw
+
+
+
+
+- UI绘制详细步骤
+
+1. 测量布局performMeasure
+
+view.measure --> view.onMeasure --> view.setMeasureDimension --> setMeasuredDimensionRaw
+
+2. 布局performLayout
+
+view.layout --> view.onLayout
+
+3. 绘制performDraw
+
+ViewRootImpl.draw(fullRedrawNeeded) --> ViewRootImpl.drawSoftware --> view.draw(Canvas)
+
+
+- 具体详解
+
+1. 测量 MeasureSpec
+
+测量的时候要测量 `SpecMode` 和 `SpecSize` ，这两个封装在32位int值`MeasureSpec`中,`MeasureSpec`的前两位表示`SpecMode`，后30位表示`SpecSize` 
+
+其中MeasureSpec 有以下几种:
+
+```
+/**
+         * Measure specification mode: The parent has not imposed any constraint
+         * on the child. It can be whatever size it wants.
+         */
+        public static final int UNSPECIFIED = 0 << MODE_SHIFT;
+
+        /**
+         * Measure specification mode: The parent has determined an exact size
+         * for the child. The child is going to be given those bounds regardless
+         * of how big it wants to be.
+         */
+        public static final int EXACTLY     = 1 << MODE_SHIFT;
+
+        /**
+         * Measure specification mode: The child can be as large as it wants up
+         * to the specified size.
+         */
+        public static final int AT_MOST     = 2 << MODE_SHIFT;
+```
+
+`MODE_SHIFT` 是一个30位的int值 000000000000000000000000000000
+
+`MODE_MASK = 0x3 << MODE_SHIFT`  就是 3左移30位 结果为：11000000000000000000000000000000
+
+`UNSPECIFIED` 将0左移30位得到  对应值:000000000000000000000000000000
+
+
+
+`EXACTLY` 将1左移30位得到 对应值: 010000000000000000000000000000
+
+
+
+`AT_MOST` 将1左移30位得到 对应值: 100000000000000000000000000000
+
+
+
+
+得到对应的值之后 调用`makeMeasureSpec()`  对MODE 和SIZE 进行打包合并 ，计算方法为：
+
+size 与 MODE_MASK的非 即`size&~MODE_MASK`，其中`~MODE_MASK`的值就是`MODE_MASK`取反，1 变成0 ， 0变成1 ，即00111111111111111111111111111111
+
+
+mode与MODE_MASK 即取MODD_MASK的前两位 11，
+
+
+最后 两者按位或运算 得到MeasureSpec，结果为： 11111111111111111111111111111111
+
+
+
+- 三种测量方式的介绍
+
+1. UNSPECIFIED
+
+父容器不对View做任何限制，系统内部使用
+
+2. EXACTLY
+
+父容器测量出View的大小即SpecSize， 对应布局属性LayoutParams 中的固定值 或者 MATACH_PARENT
+
+3. AT_MOST
+
+父容器指定一个View的可用大小，View不能够超出这个值，对应的布局属性LayoutParams WRAP_CONTENT
+
+
+
+
+
+
+
+
+
 
 
 
