@@ -138,3 +138,25 @@ LightColorFilter:光照效果
 PorterDuffColorFilter：指定一个颜色和一种PorterDuff.Mode与绘制对象进行合成
 
 ColorMatrixColorFilter:使用一个ColorMatrix来对颜色进行处理
+
+
+__PorterDuff.Mode 图层混合模式__
+
+它将所绘制图形的像素与Canvas中对应位置的像素按照一定规则进行混合，行车定新的像素值，从而更新Canvas中最终的像素颜色值。
+
+18种模式
+
+
+|:-:|:-:|:-:|
+Mode.CLEAR|Mode.SRC|Mode.DST  
+Mode.SRC_OVER|Mode.DST_PVER|Mode.SRC_IN
+Mode.DST_IN|Mode.SRC_OUT|Mode.DST_OUT
+Mode.SRC_ATOP|Mode.DST_ATOP|Mode.XOR
+Mode.DARKEN|Mode.LIGHTEN|Mode.MULTIPLY
+
+
+
+
+
+
+
