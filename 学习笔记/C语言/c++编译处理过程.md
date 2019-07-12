@@ -1,8 +1,13 @@
 
- 预编译   gcc -E main.c -o main.i
+1. 预编译   gcc -E main.c -o main.i
 
- 编译     gcc -S main.c -o main.s
+2. 编译     gcc -S main.c -o main.s
 
- 汇编     gcc -c main.c -o main.o
+3. 汇编     gcc -c main.c -o main.o
 
- 链接     gcc main.o -o test
+4. 链接     gcc main.o -o test
+
+
+
+ - 生成静态库
+首先
