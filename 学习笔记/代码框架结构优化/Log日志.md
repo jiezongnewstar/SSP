@@ -71,21 +71,30 @@ public class XBLogger{
 
     public XBLogger logType(LOG_TYPE log_type){
         type = log_type;
+        if (instance == null){
+            instance = new XBLogger();
+        }
         return instance;
     }
 
 
     public XBLogger tag(String tag){
         this.tag = tag;
+        if (instance == null){
+            instance = new XBLogger();
+        }
         return instance;
     }
 
     public XBLogger msg(String msg){
         this.msg = msg;
+        if (instance == null){
+            instance = new XBLogger();
+        }
         return instance;
     }
 
-    
+
     public enum LOG_TYPE{
         E,      //Erro
         D,      //Debug
